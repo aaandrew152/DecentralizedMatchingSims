@@ -1,10 +1,11 @@
 from math import pow
 import random
 import Graphing
+from joblib import Parallel, delayed
 
 random.seed()
-maxN = 200  # Maximal market size
-simNumber = 1000  # Number of simulations per market size
+maxN = 100  # Maximal market size
+simNumber = 5000  # Number of simulations per market size
 
 
 def generateMatrix(n):  # Generate a random potential by pulling values from ${1, ..., n^2}$
@@ -67,15 +68,20 @@ def workerResponses(potential, exitedFirms, exitedWorkers, workerOffers, firmRej
                     if firm[workerIdx] > bestOfferingFirm and firmIdx in workerOffers[workerIdx]:
                         bestOfferingFirm, bestOfferingFirmIdx = firm[workerIdx], firmIdx
 
+                toRemove = []
                 for firmIdx in workerOffers[workerIdx]:  # For every firm which is not the worker's most preferred offering firm reject
                     if firmIdx != bestOfferingFirmIdx:
                         firmRejects[firmIdx].append(workerIdx)
-                        workerOffers[workerIdx].remove(firmIdx)
+                        toRemove.append(firmIdx)
+
+                for removal in toRemove:
+                    workerOffers[workerIdx].remove(removal)
 
     exitedFirms.extend(newlyExitedFirms)
     return exitedFirms, exitedWorkers, workerOffers, firmRejects
 
-def simulation(potential):
+def simulation(n):
+    potential = generateMatrix(n)
     exitedFirms = []
     exitedWorkers = []  # Lists of players which have left the market
     workerOffers = [[] for worker in range(len(potential))]  # Lists by worker of firms which have made them offers
@@ -89,32 +95,36 @@ def simulation(potential):
 
     return endPeriod
 
+
+def displayMatrix(matrix):
+    for firm in matrix:
+        print(firm)
+
+
+def sampleSimulation(n):
+    potential = generateMatrix(n)
+    displayMatrix(potential)
+
+    print(simulation(potential))
+
+
 def main(start=1, end=None):
     if not end:
         end = maxN
 
     simPeriods = []
     for n in range(start, end+1):  # For each market size run simulations of random markets
-        simPeriods.append([])
+        print(n)
 
-        for simI in range(simNumber):  # Given market size n, run a single simulation
-            potential = generateMatrix(n)
-            endPeriod = simulation(potential)
-            simPeriods[n-1].append(endPeriod)
+        nPeriodResults = Parallel(n_jobs=2)(delayed(simulation)(n) for i in range(simNumber))
+
+        simPeriods.append(nPeriodResults)
 
     return simPeriods
 
 
-def sampleSimulation(n):
-    potential = generateMatrix(n)
-    for firm in potential:
-        print(firm)
+periods = main()
 
-    print(simulation(potential))
-
-
-simPeriods = main()
-
-Graphing.graphAvg95(simPeriods)
+Graphing.graphAvg95(periods)
 
 

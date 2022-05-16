@@ -3,8 +3,10 @@ import random
 import Graphing
 # Note max number of periods is hard coded to size of market in the event of infinite convergence
 
+#SEVERAL ERRORS: Fix exit time and don't remove elements while list is iterating
+
 maxN = 200
-simNumber = 10000
+simNumber = 12500
 random.seed()
 
 def generateMatrix(n):
@@ -31,7 +33,7 @@ def firmOffers(potential, workerOffers, firmRejects):
                 offerHeld = True
 
         if not offerHeld:
-            topWorkerUtility, topworkerIdx = -1, -1
+            topWorkerUtility, topWorkerIdx = -1, -1
             for workerIdx, utility in enumerate(firmRankings):
                 if workerIdx not in firmRejects[firmIdx] and utility[0] > topWorkerUtility:
                     topWorkerUtility, topWorkerIdx = utility[0], workerIdx
