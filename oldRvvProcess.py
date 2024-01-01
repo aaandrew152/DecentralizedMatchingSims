@@ -8,7 +8,7 @@ import time
 
 random.seed()
 maxN = 100  # Maximal market size
-simNumber = 5000  # Number of simulations per market size
+simNumber = 15000  # Number of simulations per market size
 tic = time.perf_counter()
 
 
@@ -38,13 +38,12 @@ def notStableMatch(agentList):  # Returns true if some agent isn't matched to th
     return False
 
 def match(worker, firm, agentList, value):
-    assert worker.type == 1 and firm.type == 0, "worker should be entered first"
+    assert worker.type == 0 and firm.type == 1, "worker should be entered first"
     worker.unmatchPartner(agentList)
     firm.unmatchPartner(agentList)
     worker.mv, firm.mv = repeat(value, 2)
     worker.partner = firm.id
     firm.partner = worker.id
-    worker.topOffer = None
 
 def simulation(n):
     agentList = []
@@ -61,32 +60,61 @@ def simulation(n):
     endPeriod = 0
 
     while notStableMatch(agentList):  # While the current matches do not contain the stable match
-        onePeriod(potential, agentList)
-        endPeriod += 1
+        changed = onePeriod(potential, agentList)
+        endPeriod += changed
 
     return endPeriod
 
 def onePeriod(potential, agentList):
-    for firm in agentList[:agentList[0].numAgents]:
-        betterResponse(potential, agentList, firm)  # firm randomly selects someone they like to make an offer to
+    chosenAgent = random.choice(agentList)
+    changed = betterResponse(potential, agentList, chosenAgent)  # Can be swapped out for better response dynamics
+    return changed
 
-    for worker in agentList[agentList[0].numAgents:]:
-        if worker.topOffer:
-            firm = agentList[worker.topOffer[0]]
-            match(worker, firm, agentList, potential[firm.id][worker.id])
+def bestResponse(potential, agentList, agent):  # Finds the best match that will accept
+    BPvalue = agent.mv  # Current best BP value
+    BPid = agent.partner
 
-def betterResponse(potential, agentList, firm):  # Uniformly selects any (better) possible partner
-    possParts = []  # Set of possible partners
+    if agent.type == 0:
+        for firmNum, value in enumerate(potential[agent.id]):  # Find better possible matches
+            if value > BPvalue and value > agentList[agent.numAgents + firmNum].mv:  # We are a better bp
+                BPvalue = value
+                BPid = firmNum
+        if BPid != agent.partner:
+            newPartner = agentList[BPid + agent.numAgents]  # Randomly choose one blocking pair involving this player
+            match(agent, newPartner, agentList, potential[agent.id][newPartner.id])
+            return 1
+    else:
+        for workerNum, workerVals in enumerate(potential):
+            if workerVals[agent.id] > BPvalue and workerVals[agent.id] > agentList[workerNum].mv:
+                BPvalue = workerVals[agent.id]
+                BPid = workerNum
+        if BPid != agent.partner:
+            newPartner = agentList[BPid]  # Randomly choose one blocking pair involving this player
+            match(newPartner, agent, agentList, potential[newPartner.id][agent.id])
+            return 1
+    return 0
 
-    assert firm.type == 0, "Only firms allowed to make offers"
+def betterResponse(potential, agentList, agent):  # Uniformly selects any (better) match that will accept
+    possBPs = []  # Set of possible blocking partners
 
-    for workerNum, value in enumerate(potential[firm.id]):  # Find better possible matches
-        if value > firm.mv:  # I like them
-            possParts.append(workerNum)
+    if agent.type == 0:
+        for colNum, value in enumerate(potential[agent.id]):  # Find better possible matches
+            if value > agent.mv and value > agentList[agent.numAgents + colNum].mv:  # We are a bp
+                possBPs.append(colNum)
+        if possBPs:
+            newPartner = agentList[random.choice(possBPs) + agent.numAgents]  # Randomly choose one blocking pair involving this player
+            match(agent, newPartner, agentList, potential[agent.id][newPartner.id])
+            return 1
+    else:
+        for rowNum, workerVals in enumerate(potential):
+            if workerVals[agent.id] > agent.mv and workerVals[agent.id] > agentList[rowNum].mv:
+                possBPs.append(rowNum)
+        if possBPs:
+            newPartner = agentList[random.choice(possBPs)]  # Randomly choose one blocking pair involving this player
+            match(newPartner, agent, agentList, potential[newPartner.id][agent.id])
+            return 1
 
-    if possParts:  # As long as there is someone I like
-        newPartner = agentList[random.choice(possParts) + firm.numAgents]  # Randomly choose one preferred worker
-        newPartner.considerOffer(firm.id, potential[firm.id][newPartner.id])
+    return 0
 
 
 class Agent:
@@ -94,12 +122,11 @@ class Agent:
 
     def __init__(self, id, type, numAgents):
         self.id = id
-        self.type = type  # 0 if firm (row agent), 1 if worker (col agent)
+        self.type = type  # 0 if row agent, 1 if col agent
         self.mv = -1
         self.partner = -1
         self.stabPart = None
         self.numAgents = numAgents
-        self.topOffer = None
 
     def notStabMatched(self):
         if self.partner == self.stabPart:
@@ -119,14 +146,6 @@ class Agent:
         for agent in unmatchedAgents:
             agent.mv = -1
             agent.partner = -1
-
-    def considerOffer(self, firmId, mv):
-        if self.topOffer:
-            if self.topOffer[1] < mv:
-                self.topOffer = (firmId, mv)
-        else:
-            if self.mv < mv:
-                self.topOffer = (firmId, mv)
 
 def main(start=1, end=None):
     if not end:

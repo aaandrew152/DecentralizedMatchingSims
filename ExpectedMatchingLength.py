@@ -5,7 +5,7 @@ from joblib import Parallel, delayed
 
 random.seed()
 maxN = 100  # Maximal market size
-simNumber = 5000  # Number of simulations per market size
+simNumber = 15000  # Number of simulations per market size
 
 
 def generateMatrix(n):  # Generate a random potential by pulling values from ${1, ..., n^2}$
